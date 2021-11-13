@@ -1,0 +1,52 @@
+#import file
+$File = import-csv .\URL_check.csv
+#khai bao bien
+[System.Collections.Arraylist]$links=@();
+[System.Collections.Arraylist]$response=@();
+$date = get-date -Format 'ddMMyyyy';
+$Header = @"
+<style>
+TABLE {border-width: 1px; border-style: solid; border-color: black; border-collapse: collapse;}
+TD {border-width: 1px; padding: 3px; border-style: solid; border-color: black;}
+</style>
+"@
+#lay links
+foreach($row in $File){$all=$links.add($row.psobject.Properties.value[1])}
+#lay response code
+foreach($link in $links){
+try{$temp =(((invoke-webrequest $link).statuscode).toString()).subString(0,1)}catch{$null=$response.add('error occured')};
+if($temp -eq 2){$all=$response.add('success')}elseif($temp -eq 4){
+$all=$response.add('client error')}elseif($temp -eq 5){
+$all=$response.add('server error')}}
+#dua ket qua lai vao $File
+for($i=0;$i-le(($File.length).toInt32($null)-1);$i++){
+$File.item($i).STATUS = $response[$i]}
+#export
+#$File | export-csv .\$date.csv -NoTypeInformation
+#conver HTML
+$File = $File | ConvertTo-Html -Property SID,URL,STATUS -head $Header
+
+#khai bao bien gui mail
+$username = 'APAC\YNI81HC';$passwd = Get-Content .\password.txt
+#add recipients 
+[string[]]$recipients=@('Giang.NguyenLeTruc@vn.bosch.com','Phuc.DangTheVinh@vn.bosch.com')
+# Convert to SecureString
+[securestring]$secStringPassword = ConvertTo-SecureString $passwd -AsPlainText -Force 
+#created the PSCredential object 
+[pscredential]$credObject = New-Object System.Management.Automation.PSCredential ($username, $secStringPassword)
+#set parameters
+$parameters = @{
+From = "Giang.NguyenLeTruc@vn.bosch.com";
+To = $recipients;
+Subject = 'URL daily check';
+Body = "Report of url checks $date. please find enclosed report: $File";
+BodyAsHTML = $True;
+Priority = 'High';
+SmtpServer = 'rb-owa.apac.bosch.com';
+Credential = $credObject;
+}
+#sendmail
+Send-MailMessage @parameters   
+
+#print a line
+write-host "script run success with $all urls checked. Mail sent to $recipients"
